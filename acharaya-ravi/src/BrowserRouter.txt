@@ -1,0 +1,8 @@
+BrowserRouter 
+
+Home = / 
+Consultancy = /Consultancy
+Design = /Design
+Horoscope = /Horoscope
+Remedies = /Remedies
+ContactUS = /contactus
