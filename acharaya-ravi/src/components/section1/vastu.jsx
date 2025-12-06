@@ -1,16 +1,31 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 
-/**
- * WhatIsVastu - full component
- * - Click to expand inline (no hover)
- * - Expanded height is content-driven (no large fixed minHeight)
- * - Capped inner maxHeight with overflow:auto for very long content
- * - Mobile: scrollIntoView when expanding
- * - Requires: Tailwind CSS + framer-motion
- */
+// =========================================
+//  CARD WRAPPER (Reusable) — NOT full width
+// =========================================
+function VastuCardContainer({ children }) {
+  return (
+    <div
+      className="
+        max-w-6xl    /* limit width so it does NOT cover full screen */
+        mx-auto
+        bg-white
+        rounded-3xl
+        border border-gray-200
+        shadow-[0_10px_35px_rgba(0,0,0,0.10)]
+        p-6 md:p-10
+      "
+    >
+      {children}
+    </div>
+  );
+}
 
-export default function WhatIsVastu() {
+// =========================================
+//  MAIN COMPONENT (Inside the Card Now)
+// =========================================
+export default function WhatIsVastuCard() {
   const cards = [
     {
       id: "core",
@@ -47,60 +62,63 @@ export default function WhatIsVastu() {
   const [expandedId, setExpandedId] = useState(null);
   const containerRef = useRef(null);
 
-  // Close when clicking/tapping outside or pressing Escape
+  // Close when clicking outside or pressing Escape
   useEffect(() => {
-    function handleDown(e) {
+    function handlePointerDown(e) {
       if (!containerRef.current) return;
       if (!containerRef.current.contains(e.target)) setExpandedId(null);
     }
-    function handleEsc(e) {
+    function handleKeyDown(e) {
       if (e.key === "Escape") setExpandedId(null);
     }
-    document.addEventListener("pointerdown", handleDown);
-    document.addEventListener("keydown", handleEsc);
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
     return () => {
-      document.removeEventListener("pointerdown", handleDown);
-      document.removeEventListener("keydown", handleEsc);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
-  const isSmallScreen = () =>
-    typeof window !== "undefined" ? window.innerWidth < 640 : false;
+  // SSR-safe small screen check
+  const isSmall = () => typeof window !== "undefined" && window.innerWidth < 640;
 
   return (
-    <section className="w-full bg-white py-12 px-4 md:py-16 md:px-16">
+    <VastuCardContainer>
       <motion.div
-        className="max-w-6xl mx-auto"
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.42 }}
+        className="max-w-5xl mx-auto"
         ref={containerRef}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
       >
         <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
           What is <span className="text-blue-600">Vastu?</span>
         </h2>
 
-        <p className="mt-3 text-gray-600 text-sm md:text-base leading-relaxed max-w-3xl">
+        <p className="mt-3 text-gray-600 text-sm md:text-base">
           Vastu Shastra is an ancient Indian science that harmonizes your living or working environment by balancing
           the five elements — Earth, Water, Fire, Air, and Space.
         </p>
 
-        {/* grid: single column on mobile, two on sm+ */}
-        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6 auto-rows-min items-start">
+        {/* CARDS */}
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
           {cards.map((card) => {
             const isExpanded = expandedId === card.id;
+
             return (
-              <ResponsiveCard
+              <CardItem
                 key={card.id}
                 card={card}
                 isExpanded={isExpanded}
                 onToggle={(e) => {
-                  e.stopPropagation();
+                  // stop propagation so outside click logic doesn't immediately close it
+                  e?.stopPropagation?.();
                   setExpandedId((prev) => (prev === card.id ? null : card.id));
 
-                  // scroll into view on small screens when expanding
-                  if (!isExpanded && isSmallScreen()) {
+                  if (!isExpanded && isSmall()) {
+                    // small timeout so the layout can settle before scrolling
                     setTimeout(() => {
                       const el = document.getElementById(`card-${card.id}`);
                       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -112,59 +130,68 @@ export default function WhatIsVastu() {
           })}
         </div>
       </motion.div>
-    </section>
+    </VastuCardContainer>
   );
 }
 
-/* ResponsiveCard - content-driven height for expanded state */
-function ResponsiveCard({ card, isExpanded, onToggle }) {
+// =========================================
+//  INDIVIDUAL CARD — keyboard accessible
+// =========================================
+function CardItem({ card, isExpanded, onToggle }) {
+  // prepare clamp styles for collapsed vs expanded
+  const collapsedStyle = {
+    maxHeight: 48,
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+  };
+  const expandedStyle = {
+    maxHeight: 350,
+    overflow: "auto",
+    display: "block",
+    WebkitLineClamp: undefined,
+  };
+
   return (
-    <motion.article
+    <motion.div
       id={`card-${card.id}`}
       layout
-      initial={{ opacity: 0, y: 10 }}
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        // allow Enter or Space to toggle (accessibility)
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle(e);
+        }
+      }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.32 }}
-      onClick={onToggle}
-      className={`cursor-pointer select-none rounded-2xl bg-white/95 border border-gray-200 shadow-[0_10px_30px_rgba(2,6,23,0.06)] transition-all duration-300 overflow-hidden ${isExpanded ? "sm:col-span-2" : ""}`}
+      aria-expanded={isExpanded}
+      className={`rounded-2xl bg-white cursor-pointer border border-gray-200 shadow-md 
+        transition-all duration-300 p-5 overflow-hidden
+        ${isExpanded ? "sm:col-span-2" : ""}`}
       style={{
         gridColumn: isExpanded ? "1 / -1" : undefined,
-        alignSelf: "start",
-        // keep a high z-index if you need overlay; remove/change if you want navbar always on top
-        zIndex: isExpanded ? 9999 : undefined,
-        // remove stacking-creating transforms; let height be content-driven
-        boxSizing: "border-box",
-        padding: isExpanded ? 20 : 16,
-        // collapsed has a small minHeight so grid doesn't look tiny
-        minHeight: isExpanded ? undefined : 120,
-        position: "relative",
-        willChange: "height",
+        zIndex: isExpanded ? 50 : undefined, // keep above neighbors when expanded
       }}
-      aria-expanded={isExpanded}
     >
-      <h3 className="font-semibold text-gray-900 text-base md:text-lg">{card.title}</h3>
+      <h3 className="font-semibold text-gray-900 text-lg">{card.title}</h3>
 
       <div
         className="mt-3 text-gray-800 text-sm md:text-base leading-relaxed"
-        style={{
-          // allow the card to size to content; but cap very long content
-          maxHeight: isExpanded ? 520 : 48,
-          overflow: isExpanded ? "auto" : "hidden",
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-          display: "-webkit-box",
-          WebkitLineClamp: isExpanded ? "unset" : 2,
-          WebkitBoxOrient: "vertical",
-        }}
+        style={isExpanded ? expandedStyle : collapsedStyle}
       >
-        <p className="whitespace-normal break-words">{isExpanded ? card.full : card.short}</p>
+        {isExpanded ? card.full : card.short}
       </div>
 
       <div
-        className={`mt-4 h-[4px] rounded-full transition-all duration-300 origin-left ${isExpanded ? "bg-yellow-600 w-full" : "bg-blue-600 w-16"}`}
-        style={{ willChange: "width, background-color" }}
+        className={`mt-4 h-[4px] rounded-full transition-all duration-300 
+          ${isExpanded ? "bg-yellow-600 w-full" : "bg-blue-600 w-16"}`}
       />
-    </motion.article>
+    </motion.div>
   );
 }
